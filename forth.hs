@@ -32,6 +32,7 @@ data Term =
 data AbstractMachine = AbstractMachine {
       stack :: Stack
     , dictionary :: Dict
+    , terms :: [Term]
 }
 
 data Op = 
@@ -47,8 +48,8 @@ instance Show Term where
         PrimOp e -> " PrimOp " ++ " <function> "  
 
 
-emptyMachine :: AbstractMachine
-emptyMachine = AbstractMachine { stack = [], dictionary = [] }
+-- emptyMachine :: AbstractMachine
+-- emptyMachine = AbstractMachine { stack = [], dictionary = [] }
 
 push :: Term -> Stack -> Stack
 push e stack = e:stack 
@@ -73,27 +74,6 @@ evalPrimOp op (x:y:xs) = case op of
 primVal :: Term -> Int
 primVal (Const a) = a
 
-
-
--- generateStack :: [String] -> Stack -> Stack
--- generateStack [] s = s
--- generateStack (x:xs) s
---     | x == "+"  = generateStack xs (push (PrimOp (+)) s)
---     | x == "-"  = generateStack xs (push (PrimOp (-)) s)
---     | otherwise = generateStack xs (push (Const (read x :: Int)) s)
-
-
--- toTerm :: String -> Term
--- toTerm x
---     | x == "+" = PrimOp $ Add (+)
---     | x == "-" = PrimOp $ Sub (-)
---     | x == "*" = PrimOp $ Mult (*)
---     | x == "/" = PrimOp $ Div (div)
---     | x == ":" = undefined
---     | otherwise = Const (read x :: Int)
-
-
-
 toTerm :: [String]  -> [Term]
 toTerm [] = []
 toTerm (x:xs)
@@ -105,6 +85,31 @@ toTerm (x:xs)
     | x == ";" = toTerm xs
     | otherwise = (Const (read x :: Int)) : toTerm xs
 
+
+genMachine :: [String] -> Dict -> ([Term], Dict)
+genMachine [] d = ([], d)
+genMachine (x:xs) d = case x of 
+    "+" -> ((PrimOp $ Add (+)) : terms, dict)
+            where (terms, dict) = genMachine xs d
+    "-" -> ((PrimOp $ Sub (-)) : terms, dict)
+            where (terms, dict) = genMachine xs d
+    "*" -> ((PrimOp $ Mult (*)) : terms, dict)
+            where (terms, dict) = genMachine xs d
+    "/" -> ((PrimOp $ Div (div)) : terms, dict)
+            where (terms, dict) = genMachine xs d
+    ":" -> (word : terms,  dict)
+            where word@(Word name ts) = wordToTerm xs 
+                  updatedDict = (name, ts):d
+                  (terms, dict) = genMachine (dropWord xs) updatedDict
+    ";" -> genMachine xs d
+    val  -> case (lookup val d) of
+                Just ts -> (ts ++ terms, dict)
+                    where (terms, dict) = genMachine xs d
+                Nothing -> ((Const (read x :: Int)) : terms, dict)
+                     where (terms, dict) = genMachine xs d
+                
+            
+        
 
 wordToTerm :: [String] -> Term
 wordToTerm xs = setWord (parseWord xs)
@@ -128,15 +133,15 @@ eval (x:xs) s = case x of
         Const a -> eval xs (push (Const a) s)
         PrimOp f ->  eval xs (push result (drop 2 s))
             where result = evalPrimOp f (take 2 s)
+        Word name terms -> eval xs s
             
-genTerms :: [String] -> Stack
-genTerms xs = toTerm xs
-
+genTerms :: [String] -> ([Term], Dict)
+genTerms xs = genMachine xs []
 
 main :: IO ()
 main = do
     input <- getLine
     let parsed = words input
-    let terms = genTerms parsed
-    -- putStrLn (show (eval terms []))
-    putStrLn (show terms)
+    let (terms, dict) = genTerms parsed
+    putStrLn (show (eval terms []))
+    -- putStrLn ((show terms) ++ (show dict))
